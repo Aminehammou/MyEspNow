@@ -1,26 +1,21 @@
-#include "MyEspNow.h"
-#include <Arduino.h>
-
-// Définition du membre statique
+// Définition des membres statiques
 EspNowDataReceivedCallback MyEspNow::onDataReceived = nullptr;
+EspNowPacketReceivedCallback MyEspNow::onPacketReceived = nullptr;
 volatile bool MyEspNow::appAckReceived = false;
 int MyEspNow::waitingForAckId = -1;
 
 MyEspNow::MyEspNow() {}
 
 bool MyEspNow::begin() {
-    // Mettre l'appareil en mode Station Wi-Fi
     WiFi.mode(WIFI_STA);
     Serial.print("Adresse MAC de cet ESP32 : ");
     Serial.println(WiFi.macAddress());
 
-    // Initialiser ESP-NOW
     if (esp_now_init() != ESP_OK) {
         Serial.println("Erreur lors de l'initialisation d'ESP-NOW");
         return false;
     }
 
-    // Enregistrer les callbacks
     esp_now_register_send_cb(MyEspNow::onDataSent);
     esp_now_register_recv_cb(MyEspNow::onDataRecv);
 
@@ -31,13 +26,16 @@ void MyEspNow::setOnDataReceivedCallback(EspNowDataReceivedCallback callback) {
     onDataReceived = callback;
 }
 
+void MyEspNow::setOnPacketReceivedCallback(EspNowPacketReceivedCallback callback) {
+    onPacketReceived = callback;
+}
+
 bool MyEspNow::addPeer(const uint8_t* peer_addr) {
     esp_now_peer_info_t peerInfo = {};
     memcpy(peerInfo.peer_addr, peer_addr, 6);
     peerInfo.channel = 0;
     peerInfo.encrypt = false;
 
-    // Ajouter le pair
     if (esp_now_add_peer(&peerInfo) != ESP_OK) {
         Serial.println("Échec de l'ajout du pair");
         return false;
@@ -46,48 +44,54 @@ bool MyEspNow::addPeer(const uint8_t* peer_addr) {
 }
 
 bool MyEspNow::sendData(const uint8_t* peer_addr, const MyEspNowData& data) {
-    esp_err_t result = esp_now_send(peer_addr, (const uint8_t*)&data, sizeof(data));
+    uint8_t buffer[sizeof(MyEspNowData) + 1];
+    buffer[0] = TYPE_LEGACY_DATA;
+    memcpy(buffer + 1, &data, sizeof(data);
+    esp_err_t result = esp_now_send(peer_addr, buffer, sizeof(buffer));
     return result == ESP_OK;
 }
 
-// Nouvelle fonction pour un envoi fiable avec accusé de réception et tentatives
+bool MyEspNow::sendPacket(const uint8_t* peer_addr, const uint8_t* data, size_t len) {
+    if (len > 249) { // 250 - 1 octet pour le type
+        Serial.println("Erreur: La taille des données dépasse la limite de 249 octets.");
+        return false;
+    }
+    uint8_t buffer[len + 1];
+    buffer[0] = TYPE_GENERIC_PACKET;
+    memcpy(buffer + 1, data, len);
+    esp_err_t result = esp_now_send(peer_addr, buffer, sizeof(buffer));
+    return result == ESP_OK;
+}
+
+
 bool MyEspNow::sendWithAck(const uint8_t* peer_addr, MyEspNowData& data, int retries, int ack_timeout_ms) {
     static int messageId = 0;
-    data.id = messageId++; // Assigner un ID unique au message
-
+    data.id = messageId++;
     waitingForAckId = data.id;
 
     for (int i = 0; i < retries; i++) {
         appAckReceived = false;
-
-        // Envoyer les données
-        esp_err_t result = esp_now_send(peer_addr, (const uint8_t*)&data, sizeof(data));
-
-        if (result == ESP_OK) {
+        if (sendData(peer_addr, data)) {
             Serial.printf("Tentative %d/%d: Envoi du message ID %d...\n", i + 1, retries, data.id);
         } else {
             Serial.printf("Tentative %d/%d: Échec de l'envoi du message ID %d.\n", i + 1, retries, data.id);
-            delay(100); // Attendre un peu avant de réessayer
+            delay(100);
             continue;
         }
 
-        // Attendre l'ACK applicatif depuis onDataRecv
         unsigned long ack_wait_start = millis();
         while (!appAckReceived && (millis() - ack_wait_start < ack_timeout_ms)) {
-            delay(1); // Laisser d'autres tâches s'exécuter, y compris la réception de l'ACK
+            delay(1);
         }
 
         if (appAckReceived) {
             Serial.printf("ACK applicatif reçu pour l'ID %d.\n", data.id);
-            waitingForAckId = -1; // Réinitialiser
+            waitingForAckId = -1;
             return true;
-        } else {
-            Serial.printf("Tentative %d/%d: Timeout de l'ACK applicatif. Nouvelle tentative...\n", i + 1, retries);
         }
     }
-
     Serial.printf("Échec final de l'envoi du message ID %d après %d tentatives.\n", data.id, retries);
-    waitingForAckId = -1; // Réinitialiser
+    waitingForAckId = -1;
     return false;
 }
 
@@ -96,18 +100,25 @@ void MyEspNow::onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
 }
 
 void MyEspNow::onDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
-    if (len <= sizeof(MyEspNowData)) {
-        MyEspNowData receivedData;
-        memcpy(&receivedData, incomingData, len);
+    if (len == 0) return;
 
-        // Vérifier si c'est un message ACK et s'il correspond à l'ID attendu
-        if (receivedData.cmd == CMD_ACK && receivedData.id == waitingForAckId) {
-            appAckReceived = true;
-        }
+    uint8_t type = incomingData[0];
+    const uint8_t* data = incomingData + 1;
+    int dataLen = len - 1;
 
-        // Toujours transmettre le message à la fonction de rappel de l'application principale
-        if (onDataReceived != nullptr) {
+    if (type == TYPE_LEGACY_DATA) {
+        if (dataLen <= sizeof(MyEspNowData) && onDataReceived != nullptr) {
+            MyEspNowData receivedData;
+            memcpy(&receivedData, data, dataLen);
+
+            if (receivedData.cmd == CMD_ACK && receivedData.id == waitingForAckId) {
+                appAckReceived = true;
+            }
             onDataReceived(mac_addr, receivedData);
+        }
+    } else if (type == TYPE_GENERIC_PACKET) {
+        if (onPacketReceived != nullptr) {
+            onPacketReceived(mac_addr, data, dataLen);
         }
     }
 }

@@ -1,177 +1,109 @@
-# Bibliothèque MyEspNow
-
-Une bibliothèque pour simplifier la communication ESP-NOW sur ESP32, avec une gestion fiable des messages grâce à un système d'accusé de réception (ACK) applicatif.
+Une bibliothèque ESP32 pour une communication ESP-NOW simple et flexible, supportant à la fois des structures de données fixes et des paquets de données génériques.
 
 ## Fonctionnalités
 
-- Initialisation simplifiée du mode Wi-Fi et d'ESP-NOW.
-- Ajout facile de pairs (appareils distants).
-- Envoi de données structurées (`MyEspNowData`).
-- Réception de données via une fonction de rappel (callback).
-- **Envoi fiable** : un mécanisme `sendWithAck` qui attend un accusé de réception applicatif et effectue des tentatives en cas d'échec.
-- **Gestion des messages** : les messages sont identifiés par un `id` unique pour le suivi des ACKs.
-
-## Structure des données
-
-La communication est basée sur la structure `MyEspNowData` :
-
-```cpp
-enum CommandType {
-    CMD_CHANGE_PAGE,
-    CMD_SENSOR_DATA,
-    CMD_ACK // Accusé de réception
-};
-
-struct MyEspNowData {
-    CommandType cmd;
-    int id;
-    float value1;
-    float value2;
-    char text[100];
-};
-```
-
-- `cmd` : Le type de commande (par exemple, changer de page, envoyer des données de capteur).
-- `id` : Un identifiant unique pour chaque message, utilisé pour le mécanisme d'ACK.
-- `value1`, `value2` : Valeurs numériques (par exemple, température, humidité).
-- `text` : Une chaîne de caractères pour des données textuelles.
+- **Deux Modes de Communication :**
+  1. **Mode Données Structurées :** Utilisez la structure `MyEspNowData` pour des messages simples et un envoi fiable avec `sendWithAck`.
+  2. **Mode Paquet Générique :** Envoyez n'importe quelle structure de données personnalisée (jusqu'à 249 octets) avec `sendPacket` pour une flexibilité maximale.
+- **Callbacks Doubles :** Des fonctions de rappel distinctes pour chaque mode de communication (`onDataReceived` et `onPacketReceived`).
+- **Fiabilité :** Le mode structuré inclut un mécanisme d'accusé de réception (ACK) avec tentatives.
+- **Simplicité :** Facile à initialiser et à utiliser.
 
 ## Installation
 
-1. Téléchargez les fichiers `MyEspNow.h` et `MyEspNow.cpp`.
-2. Placez-les dans le même répertoire que votre fichier `.ino` principal.
-3. Incluez la bibliothèque dans votre projet avec `#include "MyEspNow.h"`.
+1.  Placez les fichiers `MyEspNow.h` et `MyEspNow.cpp` dans le même répertoire que votre fichier `.ino`.
+2.  Incluez la bibliothèque : `#include "MyEspNow.h"`.
 
-## Utilisation
+## Utilisation Rapide
 
-### 1. Initialisation
+### 1. Initialisation et Ajout d'un Pair
 
 ```cpp
 #include "MyEspNow.h"
 
 MyEspNow espNow;
+// Adresse MAC du récepteur
+uint8_t peerAddress[] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
 
 void setup() {
     Serial.begin(115200);
-    if (espNow.begin()) {
-        Serial.println("ESP-NOW initialisé avec succès.");
-    } else {
-        Serial.println("Erreur d'initialisation d'ESP-NOW.");
-    }
+    espNow.begin();
+    espNow.addPeer(peerAddress);
 }
 ```
 
-### 2. Ajout d'un pair
+### 2. Envoyer et Recevoir
 
-Chaque appareil avec lequel vous souhaitez communiquer doit être ajouté comme un pair.
+La bibliothèque gère deux types de formats de données en parallèle.
 
-```cpp
-// Adresse MAC du récepteur
-uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+#### Mode 1 : Données Structurées (Fiable)
 
-void setup() {
-    // ... initialisation ...
-    if (!espNow.addPeer(broadcastAddress)) {
-        Serial.println("Échec de l'ajout du pair.");
-    }
-}
-```
+Idéal pour des commandes simples où la fiabilité est clé.
 
-### 3. Réception de données
-
-Définissez une fonction de rappel qui sera exécutée à chaque fois qu'un message est reçu.
-
-```cpp
-void onDataReceived(const uint8_t* mac_addr, const MyEspNowData& data) {
-    Serial.printf("Message reçu de %02X:%02X:%02X:%02X:%02X:%02X\n",
-                  mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
-    Serial.printf("Commande: %d, ID: %d, Valeur1: %.2f, Valeur2: %.2f, Texte: %s\n",
-                  data.cmd, data.id, data.value1, data.value2, data.text);
-
-    // Si le message n'est pas un ACK, renvoyer un ACK
-    if (data.cmd != CMD_ACK) {
-        MyEspNowData ackData;
-        ackData.cmd = CMD_ACK;
-        ackData.id = data.id; // Renvoyer le même ID
-        espNow.sendData(mac_addr, ackData); // Envoyer l'ACK
-    }
-}
-
-void setup() {
-    // ... initialisation ...
-    espNow.setOnDataReceivedCallback(onDataReceived);
-}
-```
-
-### 4. Envoi de données
-
-#### Envoi simple (sans garantie de réception)
-
+**Émetteur :**
 ```cpp
 MyEspNowData data;
 data.cmd = CMD_SENSOR_DATA;
 data.value1 = 25.5;
-strcpy(data.text, "Température");
 
-if (espNow.sendData(broadcastAddress, data)) {
-    Serial.println("Données envoyées avec succès.");
-} else {
-    Serial.println("Échec de l'envoi des données.");
+if (espNow.sendWithAck(peerAddress, data)) {
+    Serial.println("Message structuré envoyé avec succès !");
 }
 ```
 
-#### Envoi fiable avec accusé de réception (`sendWithAck`)
-
-Cette fonction envoie un message et attend un `CMD_ACK` en retour. Elle réessaie plusieurs fois si l'ACK n'est pas reçu dans le délai imparti.
-
+**Récepteur :**
 ```cpp
-MyEspNowData data;
-data.cmd = CMD_CHANGE_PAGE;
-data.id = -1; // L'ID sera défini par la fonction
-strcpy(data.text, "HomePage");
-
-// Tenter d'envoyer avec 5 tentatives et un timeout de 200ms pour l'ACK
-if (espNow.sendWithAck(broadcastAddress, data, 5, 200)) {
-    Serial.println("Message envoyé et ACK reçu !");
-} else {
-    Serial.println("Échec de l'envoi après plusieurs tentatives.");
+void onDataReceived(const uint8_t* mac, const MyEspNowData& data) {
+    Serial.printf("Valeur reçue: %.2f\n", data.value1);
+    // Renvoyer un ACK pour la fonction sendWithAck
+    MyEspNowData ackData; 
+    ackData.cmd = CMD_ACK; 
+    ackData.id = data.id; 
+    espNow.sendData(mac, ackData);
 }
+
+espNow.setOnDataReceivedCallback(onDataReceived);
 ```
 
-## API de la bibliothèque
+#### Mode 2 : Paquet de Données Générique
 
-### `bool begin()`
+Parfait pour envoyer des structures de données personnalisées et plus volumineuses.
 
-Initialise le Wi-Fi en mode `WIFI_STA` et ESP-NOW. Affiche l'adresse MAC de l'appareil sur le port série.
-**Retourne** : `true` si l'initialisation est réussie, `false` sinon.
+**Émetteur :**
+```cpp
+struct CustomPacket {
+    float temp;
+    int id;
+    char name[20];
+};
 
-### `void setOnDataReceivedCallback(EspNowDataReceivedCallback callback)`
+CustomPacket myPacket = {36.6, 123, "Station1"};
+espNow.sendPacket(peerAddress, (const uint8_t*)&myPacket, sizeof(myPacket));
+```
 
-Définit la fonction de rappel à exécuter lors de la réception de données.
+**Récepteur :**
+```cpp
+void onPacketReceived(const uint8_t* mac, const uint8_t* data, uint8_t len) {
+    if (len == sizeof(CustomPacket)) {
+        CustomPacket receivedPacket;
+        memcpy(&receivedPacket, data, len);
+        Serial.printf("Paquet reçu de %s\n", receivedPacket.name);
+    }
+}
 
-- `callback` : Une fonction avec la signature `void(const uint8_t* mac_addr, const MyEspNowData& data)`.
+espNow.setOnPacketReceivedCallback(onPacketReceived);
+```
 
-### `bool addPeer(const uint8_t* peer_addr)`
+## API de la Bibliothèque
 
-Ajoute un appareil à la liste des pairs.
+- `bool begin()`: Initialise ESP-NOW.
+- `bool addPeer(const uint8_t* peer_addr)`: Ajoute un pair.
 
-- `peer_addr` : L'adresse MAC du pair.
-**Retourne** : `true` si le pair est ajouté avec succès, `false` sinon.
+**Mode Données Structurées :**
+- `void setOnDataReceivedCallback(callback)`: Définit le callback pour les messages structurés.
+- `bool sendData(peer, data)`: Envoie une structure `MyEspNowData`.
+- `bool sendWithAck(peer, data, ...)`: Envoie `MyEspNowData` et attend un ACK.
 
-### `bool sendData(const uint8_t* peer_addr, const MyEspNowData& data)`
-
-Envoie des données à un pair sans attendre d'accusé de réception applicatif.
-
-- `peer_addr` : L'adresse MAC du destinataire.
-- `data` : La structure `MyEspNowData` à envoyer.
-**Retourne** : `true` si l'envoi a été mis en file d'attente avec succès (ne garantit pas la réception).
-
-### `bool sendWithAck(const uint8_t* peer_addr, MyEspNowData& data, int retries = 5, int ack_timeout_ms = 200)`
-
-Envoie des données de manière fiable. Un `id` unique est assigné au message. La fonction attend un message `CMD_ACK` avec le même `id`.
-
-- `peer_addr` : L'adresse MAC du destinataire.
-- `data` : La structure `MyEspNowData` à envoyer. L'`id` est modifié par la fonction.
-- `retries` : Le nombre de tentatives d'envoi.
-- `ack_timeout_ms` : Le temps d'attente pour l'ACK en millisecondes.
-**Retourne** : `true` si l'ACK a été reçu, `false` après l'échec de toutes les tentatives.
+**Mode Paquet Générique :**
+- `void setOnPacketReceivedCallback(callback)`: Définit le callback pour les paquets génériques.
+- `bool sendPacket(peer, data, len)`: Envoie un tableau d'octets de longueur `len`.

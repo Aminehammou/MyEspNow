@@ -13,42 +13,63 @@ uint8_t emetteurAddress[] = {0xCC, 0xDB, 0xA7, 0x5B, 0x99, 0x0C};
 MyEspNow espnow;
 OledManager oled;
 
-// --- Fonction de Callback ---
-// C'est cette fonction qui sera exécutée à chaque fois que des données sont reçues.
+// --- Structure de données personnalisée pour le nouveau système de paquets ---
+struct SensorDataPacket {
+    float temperature;
+    float humidity;
+    int pressure;
+    char description[50];
+};
+
+// --- Fonctions de Callback ---
+
+// Callback pour l'ancien format de données (MyEspNowData)
 void onDataReceived(const uint8_t* mac_addr, const MyEspNowData& data) {
-    Serial.print("Message reçu de : ");
-    for (int i = 0; i < 6; i++) {
-        Serial.printf("%02X", mac_addr[i]);
-        if (i < 5) Serial.print(":");
-    }
-    Serial.printf("\nID du message: %d\n", data.id);
+    Serial.println("
+--- Message (Ancien Format) Reçu ---");
+    Serial.printf("ID: %d, Valeur1: %.2f, Valeur2: %.2f, Texte: %s
+", data.id, data.value1, data.value2, data.text);
 
-    // On traite le message seulement si c'est une commande de données de capteur
     if (data.cmd == CMD_SENSOR_DATA) {
-        Serial.printf("Données reçues -> Valeur1: %.2f, Valeur2: %.2f, Texte: %s\n", data.value1, data.value2, data.text);
-
-        // 1. Afficher les données sur l'écran OLED
         oled.clearBuffer();
-        oled.drawText(0, 0, "Donnees Recues");
+        oled.drawText(0, 0, "Ancien Format");
         oled.drawText(0, 16, "Temp: " + String(data.value1) + " C");
         oled.drawText(0, 32, "Hum:  " + String(data.value2) + " %");
-        oled.drawText(0, 48, data.text);
         oled.display();
 
-        // 2. Renvoyer un accusé de réception (ACK) à l'émetteur
+        // Renvoyer un ACK
         MyEspNowData ackData;
         ackData.cmd = CMD_ACK;
-        ackData.id = data.id; // C'est crucial : on renvoie le même ID pour que l'émetteur sache quel message a été reçu.
-        
-        // On utilise sendData (non-bloquant) pour l'ACK, pas besoin d'attendre un ACK pour un ACK.
-        espnow.sendData(emetteurAddress, ackData); 
+        ackData.id = data.id;
+        espnow.sendData(emetteurAddress, ackData);
+    }
+}
+
+// Callback pour le nouveau format de paquet générique
+void onPacketReceived(const uint8_t* mac_addr, const uint8_t* data, uint8_t len) {
+    Serial.println("
+--- Paquet (Nouveau Format) Reçu ---");
+    if (len == sizeof(SensorDataPacket)) {
+        SensorDataPacket packet;
+        memcpy(&packet, data, len);
+
+        Serial.printf("Temp: %.2f, Hum: %.2f, Pres: %d
+", packet.temperature, packet.humidity, packet.pressure);
+        Serial.printf("Desc: %s
+", packet.description);
+
+        oled.clearBuffer();
+        oled.drawText(0, 0, "Nouveau Format");
+        oled.drawText(0, 16, "Temp: " + String(packet.temperature, 1) + "C");
+        oled.drawText(0, 32, "Hum:  " + String(packet.humidity, 1) + "%");
+        oled.drawText(0, 48, "Pres: " + String(packet.pressure) + "hPa");
+        oled.display();
     }
 }
 
 void setup() {
     Serial.begin(115200);
     
-    // Initialiser l'écran OLED
     if (!oled.begin()) {
         Serial.println("Erreur OLED");
         while(true);
@@ -57,19 +78,18 @@ void setup() {
     oled.drawCenteredText(28, "En attente...");
     oled.display();
 
-    // Initialiser ESP-NOW
     if (!espnow.begin()) {
         Serial.println("Erreur ESP-NOW");
         while(true);
     }
 
-    // Ajouter l'émetteur comme pair
     espnow.addPeer(emetteurAddress);
 
-    // Enregistrer notre fonction de callback
+    // Enregistrer les deux fonctions de callback
     espnow.setOnDataReceivedCallback(onDataReceived);
+    espnow.setOnPacketReceivedCallback(onPacketReceived);
 }
 
 void loop() {
-    // Le loop peut rester vide. La réception des données est gérée par les interruptions.
+    // Le loop peut rester vide.
 }
