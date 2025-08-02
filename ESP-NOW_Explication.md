@@ -1,14 +1,14 @@
 Ce guide explique comment utiliser la bibliothèque `MyEspNow` qui supporte deux modes de communication :
 
-1.  **Mode Données Structurées (Legacy) :** Idéal pour des échanges simples et rapides avec une structure de données prédéfinie (`MyEspNowData`). Il intègre un mécanisme d'accusé de réception (`sendWithAck`) pour une communication fiable.
-2.  **Mode Paquet Générique :** Offre une flexibilité maximale en vous permettant d'envoyer n'importe quelle structure de données personnalisée (`sendPacket`), jusqu'à 249 octets.
+1. **Mode Données Structurées (Legacy) :** Idéal pour des échanges simples et rapides avec une structure de données prédéfinie (`MyEspNowData`). Il intègre un mécanisme d'accusé de réception (`sendWithAck`) pour une communication fiable.
+2. **Mode Paquet Générique :** Offre une flexibilité maximale en vous permettant d'envoyer n'importe quelle structure de données personnalisée (`sendPacket`), jusqu'à 249 octets.
 
 ## Scénario : Un Capteur et un Afficheur
 
 Nous allons illustrer les deux modes de communication avec un système composé de deux ESP32 :
 
-*   **L'Émetteur :** Envoie des données de capteurs simulées en utilisant à la fois l'ancienne et la nouvelle méthode.
-*   **Le Récepteur :** Reçoit et traite les deux types de messages, en affichant les informations sur un écran OLED.
+* **L'Émetteur :** Envoie des données de capteurs simulées en utilisant à la fois l'ancienne et la nouvelle méthode.
+* **Le Récepteur :** Reçoit et traite les deux types de messages, en affichant les informations sur un écran OLED.
 
 ---
 
@@ -109,14 +109,14 @@ void loop() {
 
 ### Comment Utiliser
 
-1.  **Téléversement :**
-    *   Ouvrez `Receiver.ino`, remplacez l'adresse MAC de l'émetteur, et téléversez.
-    *   Ouvrez `Transmitter.ino`, remplacez l'adresse MAC du récepteur, et téléversez.
-2.  **Exécution :**
-    *   Alimentez les deux ESP32 et ouvrez leurs moniteurs série.
-    *   Appuyez sur le bouton de l'émetteur.
+1. **Téléversement :**
+    * Ouvrez `Receiver.ino`, remplacez l'adresse MAC de l'émetteur, et téléversez.
+    * Ouvrez `Transmitter.ino`, remplacez l'adresse MAC du récepteur, et téléversez.
+2. **Exécution :**
+    * Alimentez les deux ESP32 et ouvrez leurs moniteurs série.
+    * Appuyez sur le bouton de l'émetteur.
 
 ### Résultat Attendu
 
-*   **Émetteur :** Le moniteur série affichera la confirmation d'envoi pour les deux formats.
-*   **Récepteur :** Le moniteur série et l'écran OLED afficheront les données reçues des deux formats, prouvant que les deux systèmes de callbacks fonctionnent en parallèle.
+* **Émetteur :** Le moniteur série affichera la confirmation d'envoi pour les deux formats.
+* **Récepteur :** Le moniteur série et l'écran OLED afficheront les données reçues des deux formats, prouvant que les deux systèmes de callbacks fonctionnent en parallèle.

@@ -11,8 +11,8 @@ Une bibliothèque ESP32 pour une communication ESP-NOW simple et flexible, suppo
 
 ## Installation
 
-1.  Placez les fichiers `MyEspNow.h` et `MyEspNow.cpp` dans le même répertoire que votre fichier `.ino`.
-2.  Incluez la bibliothèque : `#include "MyEspNow.h"`.
+1. Placez les fichiers `MyEspNow.h` et `MyEspNow.cpp` dans le même répertoire que votre fichier `.ino`.
+2. Incluez la bibliothèque : `#include "MyEspNow.h"`.
 
 ## Utilisation Rapide
 
@@ -41,6 +41,7 @@ La bibliothèque gère deux types de formats de données en parallèle.
 Idéal pour des commandes simples où la fiabilité est clé.
 
 **Émetteur :**
+
 ```cpp
 MyEspNowData data;
 data.cmd = CMD_SENSOR_DATA;
@@ -52,6 +53,7 @@ if (espNow.sendWithAck(peerAddress, data)) {
 ```
 
 **Récepteur :**
+
 ```cpp
 void onDataReceived(const uint8_t* mac, const MyEspNowData& data) {
     Serial.printf("Valeur reçue: %.2f\n", data.value1);
@@ -70,6 +72,7 @@ espNow.setOnDataReceivedCallback(onDataReceived);
 Parfait pour envoyer des structures de données personnalisées et plus volumineuses.
 
 **Émetteur :**
+
 ```cpp
 struct CustomPacket {
     float temp;
@@ -82,6 +85,7 @@ espNow.sendPacket(peerAddress, (const uint8_t*)&myPacket, sizeof(myPacket));
 ```
 
 **Récepteur :**
+
 ```cpp
 void onPacketReceived(const uint8_t* mac, const uint8_t* data, uint8_t len) {
     if (len == sizeof(CustomPacket)) {
@@ -100,10 +104,12 @@ espNow.setOnPacketReceivedCallback(onPacketReceived);
 - `bool addPeer(const uint8_t* peer_addr)`: Ajoute un pair.
 
 **Mode Données Structurées :**
+
 - `void setOnDataReceivedCallback(callback)`: Définit le callback pour les messages structurés.
 - `bool sendData(peer, data)`: Envoie une structure `MyEspNowData`.
 - `bool sendWithAck(peer, data, ...)`: Envoie `MyEspNowData` et attend un ACK.
 
 **Mode Paquet Générique :**
+
 - `void setOnPacketReceivedCallback(callback)`: Définit le callback pour les paquets génériques.
 - `bool sendPacket(peer, data, len)`: Envoie un tableau d'octets de longueur `len`.
