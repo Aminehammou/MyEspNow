@@ -55,8 +55,7 @@ void loop() {
             legacyData.value2 = random(40, 60); // Simule une humidité
             strcpy(legacyData.text, "Ancien Format");
 
-            Serial.println("
-Envoi avec l'ancienne méthode (sendWithAck)...");
+            Serial.println("Envoi avec l'ancienne méthode (sendWithAck)...");
             if (espnow.sendWithAck(recepteurAddress, legacyData)) {
                 Serial.println("Ancien format: Envoi réussi avec ACK !");
             } else {
@@ -72,8 +71,7 @@ Envoi avec l'ancienne méthode (sendWithAck)...");
             packetData.pressure = 1013 + random(-10, 10);
             strcpy(packetData.description, "Nouveau format de paquet flexible");
 
-            Serial.println("
-Envoi avec la nouvelle méthode (sendPacket)...");
+            Serial.println("Envoi avec la nouvelle méthode (sendPacket)...");
             if (espnow.sendPacket(recepteurAddress, (const uint8_t*)&packetData, sizeof(packetData))) {
                 Serial.println("Nouveau format: Envoi réussi !");
             } else {
