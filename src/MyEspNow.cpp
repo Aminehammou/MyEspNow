@@ -1,3 +1,5 @@
+#include "MyEspNow.h"
+#include <Arduino.h>
 // Définition des membres statiques
 EspNowDataReceivedCallback MyEspNow::onDataReceived = nullptr;
 EspNowPacketReceivedCallback MyEspNow::onPacketReceived = nullptr;
