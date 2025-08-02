@@ -1,0 +1,20 @@
+#######################################
+# Class (KEYWORD1)
+#######################################
+MyEspNow	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+begin	KEYWORD2
+setOnDataReceivedCallback	KEYWORD2
+addPeer	KEYWORD2
+sendData	KEYWORD2
+sendWithAck	KEYWORD2
+
+#######################################
+# Constants and Enums (LITERAL1)
+#######################################
+CMD_CHANGE_PAGE	LITERAL1
+CMD_SENSOR_DATA	LITERAL1
+CMD_ACK	LITERAL1
