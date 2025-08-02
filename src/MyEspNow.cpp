@@ -48,7 +48,7 @@ bool MyEspNow::addPeer(const uint8_t* peer_addr) {
 bool MyEspNow::sendData(const uint8_t* peer_addr, const MyEspNowData& data) {
     uint8_t buffer[sizeof(MyEspNowData) + 1];
     buffer[0] = TYPE_LEGACY_DATA;
-    memcpy(buffer + 1, &data, sizeof(data);
+    memcpy(buffer + 1, &data, sizeof(data));
     esp_err_t result = esp_now_send(peer_addr, buffer, sizeof(buffer));
     return result == ESP_OK;
 }
