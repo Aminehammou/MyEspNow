@@ -1,0 +1,22 @@
+{
+  "name": "MyEspNow",
+  "version": "1.0.0",
+  "description": "Une bibliothèque simple pour la communication ESP-NOW avec gestion d'ACK.",
+  "keywords": "esp-now, esp32, communication, networking",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aminehammou/MyEspNow.git"
+  },
+  "authors": [
+    {
+      "name": "Hammou Mohammed el Amine",
+      "email": "hammouamine@gmail.com",
+      "url": "https://github.com/Aminehammou"
+    }
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/Aminehammou/MyEspNow",
+  "dependencies": {},
+  "frameworks": "arduino",
+  "platforms": "espressif32"
+}
