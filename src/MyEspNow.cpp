@@ -1,8 +1,10 @@
 #include "MyEspNow.h"
 #include <Arduino.h>
+
 // Définition des membres statiques
 EspNowDataReceivedCallback MyEspNow::onDataReceived = nullptr;
 EspNowPacketReceivedCallback MyEspNow::onPacketReceived = nullptr;
+PeerDiscoveryCallback MyEspNow::onPeerDiscovered = nullptr;
 volatile bool MyEspNow::appAckReceived = false;
 int MyEspNow::waitingForAckId = -1;
 
@@ -31,6 +33,11 @@ void MyEspNow::setOnDataReceivedCallback(EspNowDataReceivedCallback callback) {
 void MyEspNow::setOnPacketReceivedCallback(EspNowPacketReceivedCallback callback) {
     onPacketReceived = callback;
 }
+
+void MyEspNow::setOnPeerDiscoveredCallback(PeerDiscoveryCallback callback) {
+    onPeerDiscovered = callback;
+}
+
 
 bool MyEspNow::addPeer(const uint8_t* peer_addr) {
     esp_now_peer_info_t peerInfo = {};
@@ -63,6 +70,21 @@ bool MyEspNow::sendPacket(const uint8_t* peer_addr, const uint8_t* data, size_t 
     memcpy(buffer + 1, data, len);
     esp_err_t result = esp_now_send(peer_addr, buffer, sizeof(buffer));
     return result == ESP_OK;
+}
+
+void MyEspNow::discoverPeers() {
+    uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    addPeer(broadcastAddress);
+
+    DiscoveryPacket packet;
+    packet.cmd = CMD_DISCOVERY_REQUEST;
+    WiFi.macAddress(packet.mac_addr);
+
+    uint8_t buffer[sizeof(DiscoveryPacket) + 1];
+    buffer[0] = TYPE_DISCOVERY_PACKET;
+    memcpy(buffer + 1, &packet, sizeof(packet));
+
+    esp_now_send(broadcastAddress, buffer, sizeof(buffer));
 }
 
 
@@ -121,6 +143,26 @@ void MyEspNow::onDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, 
     } else if (type == TYPE_GENERIC_PACKET) {
         if (onPacketReceived != nullptr) {
             onPacketReceived(mac_addr, data, dataLen);
+        }
+    } else if (type == TYPE_DISCOVERY_PACKET) {
+        DiscoveryPacket packet;
+        memcpy(&packet, data, sizeof(packet));
+
+        if (packet.cmd == CMD_DISCOVERY_REQUEST) {
+            addPeer(mac_addr);
+            DiscoveryPacket responsePacket;
+            responsePacket.cmd = CMD_DISCOVERY_RESPONSE;
+            WiFi.macAddress(responsePacket.mac_addr);
+            
+            uint8_t buffer[sizeof(DiscoveryPacket) + 1];
+            buffer[0] = TYPE_DISCOVERY_PACKET;
+            memcpy(buffer + 1, &responsePacket, sizeof(responsePacket));
+
+            esp_now_send(mac_addr, buffer, sizeof(buffer));
+        } else if (packet.cmd == CMD_DISCOVERY_RESPONSE) {
+            if (onPeerDiscovered != nullptr) {
+                onPeerDiscovered(packet.mac_addr);
+            }
         }
     }
 }

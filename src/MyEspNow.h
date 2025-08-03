@@ -4,12 +4,15 @@
 #include <esp_now.h>
 #include <WiFi.h>
 #include <functional>
+#include <vector>
 
 // Énumération pour identifier le type de message
 enum CommandType {
     CMD_CHANGE_PAGE,
     CMD_SENSOR_DATA,
-    CMD_ACK // Accusé de réception
+    CMD_ACK, // Accusé de réception
+    CMD_DISCOVERY_REQUEST,
+    CMD_DISCOVERY_RESPONSE
 };
 
 // Structure pour l'échange de données.
@@ -22,16 +25,26 @@ struct MyEspNowData {
     char text[100]; // Gardez un champ texte pour la flexibilité
 };
 
+// Structure for discovery packets
+struct DiscoveryPacket {
+    CommandType cmd;
+    uint8_t mac_addr[6];
+};
+
+
 // Énumération pour le type de message interne, afin de différencier les structures de données
 enum MyEspNowMessageType : uint8_t {
     TYPE_LEGACY_DATA = 0x01,
-    TYPE_GENERIC_PACKET = 0x02
+    TYPE_GENERIC_PACKET = 0x02,
+    TYPE_DISCOVERY_PACKET = 0x03
 };
 
 // Type de fonction de rappel pour les données reçues (structure originale)
 using EspNowDataReceivedCallback = std::function<void(const uint8_t* mac_addr, const MyEspNowData& data)>;
 // Nouveau type de fonction de rappel pour les paquets de données génériques
 using EspNowPacketReceivedCallback = std::function<void(const uint8_t* mac_addr, const uint8_t* data, uint8_t len)>;
+// Callback for discovered peers
+using PeerDiscoveryCallback = std::function<void(const uint8_t* mac_addr)>;
 
 
 class MyEspNow {
@@ -47,10 +60,15 @@ public:
     void setOnPacketReceivedCallback(EspNowPacketReceivedCallback callback);
     bool sendPacket(const uint8_t* peer_addr, const uint8_t* data, size_t len);
 
+    // Fonctions pour la decouverte des pairs
+    void setOnPeerDiscoveredCallback(PeerDiscoveryCallback callback);
+    void discoverPeers();
+
+
     // Fonction d'envoi fiable (conserve la structure originale pour le moment)
     bool sendWithAck(const uint8_t* peer_addr, MyEspNowData& data, int retries = 5, int ack_timeout_ms = 200);
     
-    bool addPeer(const uint8_t* peer_addr);
+    static bool addPeer(const uint8_t* peer_addr);
     
     // Callbacks statiques internes
     static void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
@@ -59,6 +77,7 @@ public:
 private:
     static EspNowDataReceivedCallback onDataReceived;
     static EspNowPacketReceivedCallback onPacketReceived; // Callback pour les paquets génériques
+    static PeerDiscoveryCallback onPeerDiscovered; // Callback for discovered peers
 
     // Variables pour gérer le mécanisme d'ACK
     static volatile bool appAckReceived;
