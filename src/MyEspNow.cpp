@@ -38,18 +38,25 @@ void MyEspNow::setOnPeerDiscoveredCallback(PeerDiscoveryCallback callback) {
     onPeerDiscovered = callback;
 }
 
-
 bool MyEspNow::addPeer(const uint8_t* peer_addr) {
     esp_now_peer_info_t peerInfo = {};
     memcpy(peerInfo.peer_addr, peer_addr, 6);
-    peerInfo.channel = 0;
+    peerInfo.channel = 0; // Utilise le canal actuel
     peerInfo.encrypt = false;
 
-    if (esp_now_add_peer(&peerInfo) != ESP_OK) {
-        Serial.println("Échec de l'ajout du pair");
+    esp_err_t result = esp_now_add_peer(&peerInfo);
+
+    if (result == ESP_OK) {
+        Serial.println("Pair ajouté avec succès.");
+        return true;
+    } else if (result == ESP_ERR_ESPNOW_EXIST) {
+        Serial.println("Pair déjà ajouté.");
+        return true; // Considérer comme un succès si le pair existe déjà
+    } else {
+        Serial.print("Échec de l'ajout du pair, code d'erreur: ");
+        Serial.println(result);
         return false;
     }
-    return true;
 }
 
 bool MyEspNow::sendData(const uint8_t* peer_addr, const MyEspNowData& data) {
@@ -124,13 +131,23 @@ void MyEspNow::onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
 }
 
 void MyEspNow::onDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
+    Serial.print("Received data from: ");
+    char macStr[18];
+    sprintf(macStr, "%02X:%02X:%02X:%02X:%02X:%02X",
+            mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+    Serial.println(macStr);
+    Serial.print("Length: "); Serial.println(len);
+
     if (len == 0) return;
 
     uint8_t type = incomingData[0];
     const uint8_t* data = incomingData + 1;
     int dataLen = len - 1;
 
+    Serial.print("Packet Type: "); Serial.println(type);
+
     if (type == TYPE_LEGACY_DATA) {
+        Serial.println("Processing TYPE_LEGACY_DATA");
         if (dataLen <= sizeof(MyEspNowData) && onDataReceived != nullptr) {
             MyEspNowData receivedData;
             memcpy(&receivedData, data, dataLen);
@@ -141,15 +158,22 @@ void MyEspNow::onDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, 
             onDataReceived(mac_addr, receivedData);
         }
     } else if (type == TYPE_GENERIC_PACKET) {
+        Serial.println("Processing TYPE_GENERIC_PACKET");
         if (onPacketReceived != nullptr) {
             onPacketReceived(mac_addr, data, dataLen);
         }
     } else if (type == TYPE_DISCOVERY_PACKET) {
+        Serial.println("Processing TYPE_DISCOVERY_PACKET");
         DiscoveryPacket packet;
         memcpy(&packet, data, sizeof(packet));
 
+        Serial.print("Discovery Command: "); Serial.println(packet.cmd);
+
         if (packet.cmd == CMD_DISCOVERY_REQUEST) {
+            Serial.println("Received CMD_DISCOVERY_REQUEST");
+            // Ajouter le pair qui a envoyé la requête pour pouvoir lui répondre
             addPeer(mac_addr);
+
             DiscoveryPacket responsePacket;
             responsePacket.cmd = CMD_DISCOVERY_RESPONSE;
             WiFi.macAddress(responsePacket.mac_addr);
@@ -160,6 +184,9 @@ void MyEspNow::onDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, 
 
             esp_now_send(mac_addr, buffer, sizeof(buffer));
         } else if (packet.cmd == CMD_DISCOVERY_RESPONSE) {
+            Serial.println("Received CMD_DISCOVERY_RESPONSE");
+            // Ajouter le pair qui a répondu à la découverte
+            addPeer(packet.mac_addr); // Utiliser l'adresse MAC du paquet de réponse
             if (onPeerDiscovered != nullptr) {
                 onPeerDiscovered(packet.mac_addr);
             }
