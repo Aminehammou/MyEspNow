@@ -46,6 +46,7 @@ struct MyEspNowData {
 struct DiscoveryPacket {
     CommandType cmd;        ///< Doit être CMD_DISCOVERY_REQUEST ou CMD_DISCOVERY_RESPONSE.
     uint8_t mac_addr[6];    ///< L'adresse MAC de l'appareil qui envoie le paquet.
+    char name[32];          ///< Le nom textuel de l'appareil.
 };
 
 /**
@@ -78,8 +79,9 @@ using EspNowPacketReceivedCallback = std::function<void(const uint8_t* mac_addr,
 /**
  * @brief Callback pour la découverte d'un nouveau pair.
  * @param mac_addr L'adresse MAC du pair qui a répondu à la découverte.
+ * @param name Le nom du pair découvert.
  */
-using PeerDiscoveryCallback = std::function<void(const uint8_t* mac_addr)>;
+using PeerDiscoveryCallback = std::function<void(const uint8_t* mac_addr, const char* name)>;
 
 
 /**
@@ -98,6 +100,12 @@ public:
      * @return `true` si l'initialisation est réussie, `false` sinon.
      */
     bool begin();
+
+    /**
+     * @brief Définit le nom de cet appareil pour la découverte.
+     * @param name Le nom de l'appareil (max 31 caractères).
+     */
+    void setDeviceName(const char* name);
     
     // --- Fonctions pour la structure de données originale ---
 
@@ -180,6 +188,8 @@ public:
     static void onDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len);
 
 private:
+    /// @brief Le nom de cet appareil, utilisé lors de la découverte.
+    static char deviceName[32];
     /// @brief Pointeur statique vers la fonction de rappel de l'utilisateur pour les données structurées.
     static EspNowDataReceivedCallback onDataReceived;
     /// @brief Pointeur statique vers la fonction de rappel de l'utilisateur pour les paquets génériques.

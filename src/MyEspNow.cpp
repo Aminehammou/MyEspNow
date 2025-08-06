@@ -2,6 +2,7 @@
 #include <Arduino.h>
 
 // Définition des membres statiques
+char MyEspNow::deviceName[32] = "ESP32"; // Nom par défaut
 EspNowDataReceivedCallback MyEspNow::onDataReceived = nullptr;
 EspNowPacketReceivedCallback MyEspNow::onPacketReceived = nullptr;
 PeerDiscoveryCallback MyEspNow::onPeerDiscovered = nullptr;
@@ -24,6 +25,11 @@ bool MyEspNow::begin() {
     esp_now_register_recv_cb(MyEspNow::onDataRecv);
 
     return true;
+}
+
+void MyEspNow::setDeviceName(const char* name) {
+    strncpy(deviceName, name, 31);
+    deviceName[31] = '\0'; // S'assurer que la chaîne est terminée par un nul
 }
 
 void MyEspNow::setOnDataReceivedCallback(EspNowDataReceivedCallback callback) {
@@ -86,6 +92,7 @@ void MyEspNow::discoverPeers() {
     DiscoveryPacket packet;
     packet.cmd = CMD_DISCOVERY_REQUEST;
     WiFi.macAddress(packet.mac_addr);
+    strncpy(packet.name, deviceName, 32);
 
     uint8_t buffer[sizeof(DiscoveryPacket) + 1];
     buffer[0] = TYPE_DISCOVERY_PACKET;
@@ -177,6 +184,7 @@ void MyEspNow::onDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, 
             DiscoveryPacket responsePacket;
             responsePacket.cmd = CMD_DISCOVERY_RESPONSE;
             WiFi.macAddress(responsePacket.mac_addr);
+            strncpy(responsePacket.name, deviceName, 32);
             
             uint8_t buffer[sizeof(DiscoveryPacket) + 1];
             buffer[0] = TYPE_DISCOVERY_PACKET;
@@ -188,7 +196,7 @@ void MyEspNow::onDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, 
             // Ajouter le pair qui a répondu à la découverte
             addPeer(packet.mac_addr); // Utiliser l'adresse MAC du paquet de réponse
             if (onPeerDiscovered != nullptr) {
-                onPeerDiscovered(packet.mac_addr);
+                onPeerDiscovered(packet.mac_addr, packet.name);
             }
         }
     }
