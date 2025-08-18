@@ -24,6 +24,7 @@ enum CommandType {
     CMD_ACK,                ///< Commande pour un accusé de réception applicatif.
     CMD_DISCOVERY_REQUEST,  ///< Commande pour une requête de découverte de pairs.
     CMD_DISCOVERY_RESPONSE, ///< Commande pour une réponse à une requête de découverte.
+    CMD_REQUEST_SENSOR_DATA,///< Commande pour demander des données de capteur à un pair.
 };
 
 /**
